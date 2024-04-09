@@ -46,7 +46,7 @@ const CarSchema = new mongoose.Schema({
         required: true,
     }, 
 
-    carmodel: {
+    model: {
         type: String,
         trim: true,
         required: true,
@@ -54,6 +54,8 @@ const CarSchema = new mongoose.Schema({
 
     year: {
         type: Number,
+        min: 1950,
+        max: new Date().getFullYear(),
         required: true,
     }, 
 
@@ -62,7 +64,7 @@ const CarSchema = new mongoose.Schema({
         required: true,
     }, 
 
-    isPublish: {
+    isAvailable: {
         type: Boolean,
         required: true,
     }, 

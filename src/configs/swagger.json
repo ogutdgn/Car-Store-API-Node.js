@@ -357,6 +357,16 @@
         ],
         "summary": "Create Car",
         "description": "",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Car"
+            }
+          }
+        ],
         "responses": {
           "201": {
             "description": "Created"
@@ -389,7 +399,7 @@
         "tags": [
           "Cars"
         ],
-        "summary": "Update Car",
+        "summary": "Create Car",
         "description": "",
         "parameters": [
           {
@@ -397,6 +407,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Car"
+            }
           }
         ],
         "responses": {
@@ -432,7 +450,7 @@
         "tags": [
           "Cars"
         ],
-        "summary": "Update Car",
+        "summary": "Create Car",
         "description": "",
         "parameters": [
           {
@@ -440,6 +458,14 @@
             "in": "path",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Car"
+            }
           }
         ],
         "responses": {
@@ -713,51 +739,6 @@
         }
       }
     },
-    "Token": {
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "function"
-            },
-            "ref": {
-              "type": "string",
-              "example": "User"
-            },
-            "required": {
-              "type": "boolean",
-              "example": true
-            },
-            "index": {
-              "type": "boolean",
-              "example": true
-            }
-          }
-        },
-        "token": {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "function"
-            },
-            "trim": {
-              "type": "boolean",
-              "example": true
-            },
-            "required": {
-              "type": "boolean",
-              "example": true
-            },
-            "index": {
-              "type": "boolean",
-              "example": true
-            }
-          }
-        }
-      }
-    },
     "Car": {
       "type": "object",
       "properties": {
@@ -814,6 +795,14 @@
           "properties": {
             "type": {
               "type": "function"
+            },
+            "min": {
+              "type": "number",
+              "example": 1950
+            },
+            "max": {
+              "type": "number",
+              "example": 2024
             },
             "required": {
               "type": "boolean",
@@ -929,6 +918,18 @@
               "example": true
             },
             "index": {
+              "type": "boolean",
+              "example": true
+            }
+          }
+        },
+        "amount": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "function"
+            },
+            "required": {
               "type": "boolean",
               "example": true
             }

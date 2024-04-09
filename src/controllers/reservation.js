@@ -11,8 +11,8 @@ module.exports = {
 
     list: async (req, res) => {
         /*
-            #swagger.tags = ["Cars"]
-            #swagger.summary = "List Cars"
+            #swagger.tags = ["Reservations"]
+            #swagger.summary = "List Reservations"
             #swagger.description = `
                 You can send query with endpoint for filter[], search[], sort[], page and limit.
                 <ul> Examples:
@@ -24,11 +24,22 @@ module.exports = {
             `
         */
 
-        const data = await res.getModelList(Reservation)
+        // Başka bir kullanıcı datasını görmesini engelle:
+        let customFilter = {}
+        if (!req.user.isAdmin && !req.user.isStaff) {
+            customFilter = { userId: req.user._id }
+        }
+
+        const data = await res.getModelList(Reservation, customFilter, [
+            { path: 'userId', select: 'username firstName lastName' },
+            { path: 'carId' },
+            { path: 'createdId', select: 'username' },
+            { path: 'updatedId', select: 'username' },
+        ])
 
         res.status(200).send({
             error: false,
-            details: await res.getModelListDetails(Reservation),
+            details: await res.getModelListDetails(Reservation, customFilter),
             data
         })
     },
@@ -37,111 +48,81 @@ module.exports = {
 
     create: async (req, res) => {
         /*
-            #swagger.tags = ["Cars"]
+            #swagger.tags = ["Reservations"]
             #swagger.summary = "Create Reservation"
+            #swagger.parameters['body'] = {
+                in: 'body',
+                required: true,
+                schema: {
+                    $ref: '#/definitions/Reservation'
+                }
+            }
         */
-        
-        //! we take the carId, startDate and endDate from req.body to check the reservation is suitable
-        const { carId, startDate, endDate } = req.body;
-    
-        try {
 
-            //! we check for the car if it exists and also the isPublish parameter is true
-            const car = await Car.findById(carId);
-            if (!car || !car.isPublish) {
-                return res.status(400).send({
-                    error: true,
-                    message: "This car is already reserved or does not exist."
-                });
-            }
+        // "Admin/staf değilse" veya "UserId göndermişmemişse" req.user'dan al:
+        if ((!req.user.isAdmin && !req.user.isStaff) || !req.body?.userId) {
+            req.body.userId = req.user._id
+        }
 
-            //! We check the dates if are they avaible for reservation
-            const existingReservations = await Reservation.find({
-                userId: req.user.id,
-                $or: [
-                    { startDate: { $lte: new Date(endDate) }, endDate: { $gte: new Date(startDate) } }, // Yeni başlangıç tarihi mevcut rezervasyon aralığında
-                    { endDate: { $gte: new Date(startDate) }, startDate: { $lte: new Date(endDate) } } // Düzeltme: Burası endDate olmalıydı ve koşul yeniden düzenlendi
-                ]
-            });
-    
-            if (existingReservations.length > 0) {
-                // Mevcut rezervasyon varsa, hata mesajı gönder
-                return res.status(400).send({
-                    error: true,
-                    message: "You already have a reservation in the requested date range. Please choose a different date range."
-                });
-            }
-    
-            //! Create the reservation
-            const newReservation = await Reservation.create({
-                ...req.body,
-                userId: req.user.id
-            });
+        // createdId ve updatedId verisini req.user'dan al:
+        req.body.createdId = req.user._id
+        req.body.updatedId = req.user._id
 
-            //! If the reservation is successful we change the isPublish to false 
-            await Car.updateOne({ _id: carId }, { isPublish: false });
+        // Kullanıcının çakışan tarihlerde başka bir reservesi var mı?
+        const userReservationInDates = await Reservation.findOne({
+            userId: req.body.userId,
+            carId: req.body.carId, //! Car reserve another car too
+            $nor: [
+                { startDate: { $gt: req.body.endDate } }, // gt: >
+                { endDate: { $lt: req.body.startDate } } // lt: <
+            ]
+        })
+        console.log(userReservationInDates)
 
-    
+        if (userReservationInDates) {
+
+            res.errorStatusCode = 400
+            throw new Error(
+                'It cannot be added because there is another reservation with the same date.',
+                { cause: { userReservationInDates: userReservationInDates } }
+            )
+            
+        } else {
+
+            const data = await Reservation.create(req.body)
+
             res.status(201).send({
                 error: false,
-                data: newReservation
-            });
-    
-        } catch (error) {
-            res.status(500).send({
-                error: true,
-                message: "An error occurred while creating the reservation."
-            });
+                data
+            })
         }
     },
     
 
     read: async (req, res) => {
         /*
-            #swagger.tags = ["Cars"]
+            #swagger.tags = ["Reservations"]
             #swagger.summary = "Get Single Reservation"
         */
 
-        //! if the user is not admin and staff
+        // Başka bir kullanıcı datasını görmesini engelle:
+        let customFilter = {}
         if (!req.user.isAdmin && !req.user.isStaff) {
-            //! if we get in to this "if" it means that a user is in the system. 
-            //! And the user can only see the owned reservation. 
-            //! Can't see other users reservations.
-            //* we get find the users reservation first and
-            const self_reservation_id = await Reservation.findOne({ userId: req.user.id });
-
-            //* if the users reservation exists we show it to user
-            if (self_reservation_id) {
-                const data = await Reservation.findOne({ _id: self_reservation_id })
-
-                res.status(200).send({
-                    error: false,
-                    data
-                })
-            
-            //* "else" means that that user have not a reservation to show or don't have permission
-            } else {
-                res.status(404).send({
-                    error: true,
-                    message: "Can't find the reservation or you don't have a permission to reach this reservation"
-                });
-            }
-        
-        //* this "else" shows that this user is admin or staff. And they can see all of the reservations thats why we just show it.
-        } else {
-            const data = await Reservation.findOne({ _id: req.params.id })
-
-            res.status(200).send({
-                error: false,
-                data
-            })
+            customFilter = { userId: req.user._id }
         }
-       
-        // const self_reservation_id = Reservation.findOne({ userId: req.user.id })
 
-        // const data = await Reservation.findOne({ _id: self_reservation_id })
+        const data = await Reservation.findOne({ _id: req.params.id, ...customFilter }).populate([
+            { path: 'userId', select: 'username' },
+            { path: 'carId' },
+            { path: 'createdId', select: 'username' },
+            { path: 'updatedId', select: 'username' },
+        ])
 
-        
+        res.status(200).send({
+            error: false,
+            data
+        })
+
     },
 
     update: async (req, res) => {
@@ -150,31 +131,18 @@ module.exports = {
             #swagger.summary = "Update Reservation"
         */
         
-        // console.log(req.file) // upload.sinle()
-        // console.log(req.files) // upload.array() || upload.any()
+        if (!req.user.isAdmin) {
+            delete req.body.userId
+        }
 
-        // Mevcut Reservation resimlerini getir:
-        // const Reservation = await Reservation.findOne({ _id: req.params.id }, { _id: 0, createdId })
-
-        // Reservation.images
-        // for (let file of req.files) {
-        //     // Mevcut Reservation resimlerine ekle:
-        //     // Reservation.images.push(file.filename)
-        //     Reservation.images.push('/uploads/' + file.filename)
-        // }
-        // // Reservation resimlerini req.body'ye aktar:
-        // req.body.images = Reservation.images
-        // console.log(req.body);
-
-        // const Reservation = await Reservation.findOne({ _id: req.params.id }, { _id: 0, createdId })
-
-
-        const data = await Reservation.updateOne({ _id: req.params.id }, { runValidators: true })
-        // const data = await Reservation.updateOne(
-        //     { _id: req.params.id },
-        //     { ...req.body, images: [...Reservation.images] },
-        //     { runValidators: true }
-        //   );
+        const data = await Car.updateOne(
+            { _id: req.params.id }, 
+            {
+                ...req.body,
+                updatedId: req.user.id //! when a staff or admin updates the cars information updatedId changes with the current req.user.id
+            }, 
+            { runValidators: true }
+        )
 
         res.status(202).send({
             error: false,

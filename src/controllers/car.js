@@ -4,7 +4,8 @@
 ------------------------------------------------------- */
 // Car Controller:
 
-const Car = require('../models/car')
+const Car = require('../models/car');
+const Reservation = require("../models/reservation");
 
 module.exports = {
 
@@ -23,11 +24,37 @@ module.exports = {
             `
         */
 
-        const data = await res.getModelList(Car)
+        let customFilter = { isAvailable: true }
+        
+        //! gonna filter from the dates
+        const { startDate: getStartDate, endDate: getEndDate } = req.query;
+
+        if (getStartDate && getEndDate) {
+
+            const reservedCars = await Reservation.find({
+                $nor: [
+                    { startDate: { $gt: getEndDate } }, // gt: >
+                    { endDate: { $lt: getStartDate } } // lt: <
+                ]
+            }, { _id: 0, carId: 1 }).distinct("carId")
+
+            customFilter._id = { $nin: reservedCars } 
+
+
+        } else {
+            req.errorStatusCode = 401;
+            throw new Error("startDate and endDate queries are required.")
+        }
+
+
+        const data = await res.getModelList(Car, customFilter, [
+            { path: "createdId", select: "username" },
+            { path: "updatedId", select: "username" }
+        ])
 
         res.status(200).send({
             error: false,
-            details: await res.getModelListDetails(Car),
+            details: await res.getModelListDetails(Car, customFilter),
             data
         })
     },
@@ -38,6 +65,13 @@ module.exports = {
         /*
             #swagger.tags = ["Cars"]
             #swagger.summary = "Create Car"
+            #swagger.parameters['body'] = {
+                in: 'body',
+                required: true,
+                schema: {
+                    $ref: '#/definitions/Car'
+                }
+            }
         */
 
         const data = await Car.create({
@@ -59,37 +93,30 @@ module.exports = {
             #swagger.summary = "Get Single Car"
         */
 
-        const data = await Car.findOne({ _id: req.params.id }).populate("createdId")
+        const data = await Car.findOne({ _id: req.params.id }).populate([
+            { path: 'createdId', select: 'username' },
+            { path: 'updatedId', select: 'username' },
+        ])
 
         res.status(200).send({
             error: false,
             data
         })
+
     },
 
     update: async (req, res) => {
         /*
             #swagger.tags = ["Cars"]
-            #swagger.summary = "Update Car"
+            #swagger.summary = "Create Car"
+            #swagger.parameters['body'] = {
+                in: 'body',
+                required: true,
+                schema: {
+                    $ref: '#/definitions/Car'
+                }
+            }
         */
-        
-        // console.log(req.file) // upload.sinle()
-        // console.log(req.files) // upload.array() || upload.any()
-
-        // Mevcut Car resimlerini getir:
-        // const Car = await Car.findOne({ _id: req.params.id }, { _id: 0, createdId })
-
-        // Car.images
-        // for (let file of req.files) {
-        //     // Mevcut Car resimlerine ekle:
-        //     // Car.images.push(file.filename)
-        //     Car.images.push('/uploads/' + file.filename)
-        // }
-        // // Car resimlerini req.body'ye aktar:
-        // req.body.images = Car.images
-        // console.log(req.body);
-
-        // const Car = await Car.findOne({ _id: req.params.id }, { _id: 0, createdId })
 
         const data = await Car.updateOne(
             { _id: req.params.id }, 
